@@ -5,11 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
 <title>두더지 잡기기🎯</title>
 
-<!-- ✅ 주황색 동그라미 파비콘 -->
-<link rel="icon" href="data:image/svg+xml,
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>
-  <circle cx='50' cy='50' r='45' fill='%23ff9800'/>
-</svg>">
+<!-- ✅ 주황색 동그라미 파비콘 (SVG data URL 인코딩) -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%23ff9800'/%3E%3C/svg%3E">
 
 <style>
   :root{
@@ -21,6 +18,13 @@
   *{ box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
   html, body { height:100%; overscroll-behavior: none; }
 
+  /* ✅ 게임 중 스크롤 잠금용 클래스 */
+  body.no-scroll{
+    position: fixed; /* iOS 사파리 대비 */
+    overflow: hidden;
+    width: 100%;
+  }
+
   body{
     margin:0; display:flex; flex-direction:column; align-items:center;
     font-family: ui-sans-serif, system-ui, -apple-system, "Pretendard","Segoe UI",sans-serif;
@@ -28,7 +32,7 @@
     min-height:100vh;
   }
 
-  /* ✅ 헤더: 1열 고정 */
+  /* 헤더: 1열 고정 */
   header{
     position:sticky; top:0; z-index:10; width:100%;
     display:flex; align-items:center; justify-content:space-between;
@@ -38,7 +42,8 @@
   }
   .left,.right{display:flex; align-items:center; gap:10px; min-width:auto; flex:0 0 auto;}
   .center{flex:1 1 auto; display:flex; justify-content:center; min-width:0;}
-  #homeLogo{ display:inline-flex; align-items:center; cursor:pointer; }
+  /* ✅ 로고를 a 링크로 변경 */
+  #homeLogo{ display:inline-flex; align-items:center; cursor:pointer; text-decoration:none; }
   #homeLogo img{ height:32px; width:auto; object-fit:contain; display:block; }
   .title{
     margin:0; font-size:clamp(16px,4vw,20px); font-weight:800; color:#111;
@@ -49,7 +54,7 @@
     border:1px solid #d1d5db; border-radius:10px; cursor:pointer; background:#fff; color:#111;
   }
 
-  /* ✅ 상태바 (Time / Score) */
+  /* 상태바 (Time / Score) */
   .statusbar{
     width:100%; display:flex; justify-content:center; gap:10px;
     padding:10px calc(var(--side-pad) + 12px) 0;
@@ -77,7 +82,7 @@
   }
   .mole.up{ top:28%; }
 
-  /* ✅ Start 버튼 가운데 정렬 */
+  /* Start 버튼 가운데 정렬 */
   .primary{
     display:block; margin:6px auto 0;
     min-height:44px; min-width:160px; padding:12px 20px;
@@ -85,7 +90,7 @@
     box-shadow:0 6px 18px rgba(0,0,0,.25);
   }
 
-  /* ✅ 랭킹 박스 */
+  /* 랭킹 박스 */
   #scoreboard-list{ width:min(760px,100%); padding:0 calc(var(--side-pad) + 12px); margin:16px auto 18px; }
   #scoreboard-list h2{ margin:6px 0 10px; color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.45); font-size:clamp(16px,4vw,20px); }
   .rank-card{
@@ -108,7 +113,7 @@
     box-shadow:0 1px 4px rgba(0,0,0,.08); display:flex; justify-content:space-between; font-weight:700;
   }
 
-  /* ✅ 일시정지 오버레이 */
+  /* 일시정지 오버레이 */
   .overlay{
     position:fixed; inset:0; background:rgba(0,0,0,.45);
     display:none; align-items:center; justify-content:center; z-index:20;
@@ -130,9 +135,10 @@
 
 <header>
   <div class="left">
-    <div id="homeLogo" role="button" tabindex="0" title="초기 화면으로 이동">
+    <!-- ✅ 로고 클릭 시 멀티캠퍼스 홈페이지로 이동 -->
+    <a id="homeLogo" href="https://www.multicampus.com" title="multicampus 홈페이지로 이동">
       <img src="https://api.multicampus.com/ssf/v1/resource/public/images/FILBS202506207041267" alt="multicampus 로고" />
-    </div>
+    </a>
   </div>
   <div class="center">
     <h1 class="title">두더지 잡기</h1>
@@ -152,7 +158,7 @@
   <div id="grid"></div>
   <button id="start" class="primary">Start Game</button>
 
-  <!-- ✅ 게임 종료 시 자동 표시 + 등록 가능 -->
+  <!-- 게임 종료 시 자동 표시 + 등록 가능 -->
   <div id="scoreboard-list" style="display:none;">
     <h2>👑 Scoreboard</h2>
     <div class="rank-card">
@@ -188,7 +194,6 @@
   const hitSound = document.getElementById('hitSound');
   const pauseBtn = document.getElementById('pauseBtn');
   const pauseOverlay = document.getElementById('pauseOverlay');
-  const homeLogo = document.getElementById('homeLogo');
 
   const registerBox = document.getElementById('registerBox');
   const finalScoreText = document.getElementById('finalScoreText');
@@ -210,6 +215,37 @@
   let isRunning = false;
   let isPaused = false;
   let lastGameScore = 0; // 종료 후 등록용
+
+  // ✅ 스크롤 잠금/해제 (iOS 포함 안정화)
+  let savedScrollY = 0;
+  function lockScroll(){
+    if (document.body.classList.contains('no-scroll')) return;
+    savedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.body.style.top = `-${savedScrollY}px`;
+    document.body.classList.add('no-scroll');
+  }
+  function unlockScroll(){
+    if (!document.body.classList.contains('no-scroll')) return;
+    document.body.classList.remove('no-scroll');
+    const y = savedScrollY || 0;
+    document.body.style.top = '';
+    window.scrollTo(0, y);
+  }
+
+  // ✅ 터치 스크롤/바운스 방지 (게임 중에만)
+  document.addEventListener('touchmove', (e)=>{
+    if (isRunning && !isPaused) {
+      e.preventDefault();
+    }
+  }, { passive:false });
+
+  // ✅ 스페이스/화살표로 페이지 스크롤되는 것 방지 (게임 중에만)
+  window.addEventListener('keydown', (e)=>{
+    const k = e.key;
+    if (isRunning && !isPaused && (k === ' ' || k === 'Spacebar' || k.startsWith('Arrow'))) {
+      e.preventDefault();
+    }
+  }, { passive:false });
 
   function createGrid() {
     for(let i=0; i<9; i++) {
@@ -283,9 +319,13 @@
     clearInterval(gameTimer);
     clearInterval(countdownTimer);
 
-    // ✅ 랭킹 자동 표시 + 등록 가능
+    // ✅ 스크롤 다시 허용
+    unlockScroll();
+
+    // 랭킹 자동 표시 + 등록 가능
     lastGameScore = score;
-    finalScoreText.textContent = `최종 점수: ${lastGameScore}`;
+    const fs = new Intl.NumberFormat('ko-KR').format(lastGameScore);
+    finalScoreText.textContent = `최종 점수: ${fs}`;
     playerNameInput.value = '';
     registerBox.style.display = 'flex';
     scoreboardList.style.display = 'block';
@@ -344,6 +384,9 @@
     bgm.currentTime=0;
     bgm.play().catch(()=>{});
 
+    // ✅ 게임 시작과 동시에 스크롤 잠금
+    lockScroll();
+
     updateDifficulty();
     showMoles();
     clearInterval(gameTimer);
@@ -361,6 +404,8 @@
       pauseOverlay.style.display = 'flex';
       pauseOverlay.setAttribute('aria-hidden','false');
       pauseBtn.textContent = '▶️ Resume';
+      // ✅ 일시정지 시 스크롤 허용
+      unlockScroll();
     } else {
       bgm.play().catch(()=>{});
       updateDifficulty();
@@ -369,6 +414,8 @@
       pauseOverlay.style.display = 'none';
       pauseOverlay.setAttribute('aria-hidden','true');
       pauseBtn.textContent = '⏸️ Pause';
+      // ✅ 재개 시 다시 잠금
+      lockScroll();
     }
   }
 
@@ -387,31 +434,12 @@
     }
   });
 
-  // 로고 클릭 시 초기화(홈 느낌)
-  function goHome(){
-    isRunning = false; isPaused = false;
-    bgm.pause(); bgm.currentTime = 0;
-    clearInterval(gameTimer); clearInterval(countdownTimer);
-    holes.forEach(({mole})=>mole.classList.remove('up'));
-    timeLeft = gameDuration;
-    timerEl.textContent = `Time left: ${timeLeft}s`;
-    score = 0; scoreEl.textContent = score;
-    startBtn.disabled = false;
-    pauseBtn.disabled = true;
-    pauseBtn.textContent = '⏸️ Pause';
-    pauseOverlay.style.display = 'none';
-    // 랭킹은 유지하되 등록 박스만 감춤
-    registerBox.style.display='none';
-    window.scrollTo({top:0, behavior:'smooth'});
-  }
-
   // 초기화
   createGrid();
   displayScores();
   startBtn.addEventListener('click', startGame);
   pauseBtn.addEventListener('click', togglePause);
   pauseBtn.disabled = true;
-  homeLogo.addEventListener('click', goHome);
 </script>
 </body>
 </html>
